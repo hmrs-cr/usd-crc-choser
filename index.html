@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>USD or CRC?</title>
+  <meta name="description" content="Decide whether paying in USD or CRC is cheaper, using the bank buy rate.">
+
+  <!-- PWA: manifest, theme and Apple home-screen tags -->
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icon.svg">
+  <meta name="theme-color" content="#0f766e" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0b1416" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="USD/CRC">
+
+  <style>
+    /* ===================== Design tokens ===================== */
+    :root {
+      --bg: #f3f6f6;
+      --surface: #ffffff;
+      --surface-2: #eef3f3;
+      --text: #10201f;
+      --muted: #5b6e6c;
+      --border: #d8e2e1;
+      --primary: #0f766e;
+      --primary-ink: #ffffff;
+      --accent-soft: #d9f2ee;
+      --win: #0f766e;
+      --win-soft: #e3f6f2;
+      --error: #b42318;
+      --error-soft: #fdecea;
+      --warn: #8a5a00;
+      --warn-soft: #fff4dc;
+      --radius: 14px;
+      --shadow: 0 1px 2px rgba(16, 32, 31, .06), 0 4px 16px rgba(16, 32, 31, .06);
+      color-scheme: light dark;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1416;
+        --surface: #121e20;
+        --surface-2: #18272a;
+        --text: #e6efee;
+        --muted: #93a7a5;
+        --border: #24383b;
+        --primary: #2dd4bf;
+        --primary-ink: #04201c;
+        --accent-soft: #123532;
+        --win: #2dd4bf;
+        --win-soft: #0f2d2a;
+        --error: #ff8a80;
+        --error-soft: #3a1714;
+        --warn: #f5c56b;
+        --warn-soft: #33270f;
+        --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+      }
+    }
+
+    /* ===================== Base ===================== */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    button, input { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    .hidden { display: none !important; }
+    .num { font-variant-numeric: tabular-nums; }
+
+    /* ===================== Header ===================== */
+    header {
+      position: sticky; top: 0; z-index: 10;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+    }
+    .header-inner {
+      max-width: 560px; margin: 0 auto;
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; margin-right: auto; }
+    .brand img { width: 28px; height: 28px; border-radius: 7px; }
+    .chip {
+      font-size: .75rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+      background: var(--warn-soft); color: var(--warn);
+    }
+    .segmented {
+      display: inline-flex; background: var(--surface-2); border-radius: 10px; padding: 3px;
+    }
+    .segmented button {
+      border: 0; background: transparent; padding: 6px 12px; border-radius: 8px;
+      font-size: .875rem; font-weight: 600; color: var(--muted);
+    }
+    .segmented button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+    .nav-row { max-width: 560px; margin: 10px auto 0; }
+    .nav-row .segmented { width: 100%; }
+    .nav-row .segmented button { flex: 1; }
+
+    /* ===================== Layout ===================== */
+    main { max-width: 560px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px;
+    }
+    h2 { font-size: 1.05rem; margin: 0 0 12px; }
+
+    /* ===================== Rate widget ===================== */
+    .rate-top { display: flex; align-items: center; gap: 12px; }
+    .rate-main { flex: 1; min-width: 0; }
+    .rate-label { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .rate-value { font-size: 1.6rem; font-weight: 700; }
+    .rate-meta { font-size: .8rem; color: var(--muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .badge {
+      font-size: .7rem; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+      background: var(--accent-soft); color: var(--primary); text-transform: uppercase; letter-spacing: .03em;
+    }
+    .badge.manual, .badge.cached { background: var(--warn-soft); color: var(--warn); }
+    .btn-icon {
+      border: 1px solid var(--border); background: var(--surface-2); border-radius: 10px;
+      padding: 8px 12px; font-size: .85rem; font-weight: 600; display: inline-flex; gap: 6px; align-items: center;
+    }
+    .btn-icon:disabled { opacity: .6; cursor: progress; }
+    .btn-icon svg { width: 16px; height: 16px; }
+    .spin svg { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .manual-rate { margin-top: 12px; }
+    .bank-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: .875rem; font-weight: 600; }
+    .bank-row select {
+      flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--border);
+      border-radius: 10px; background: var(--surface); font: inherit; font-weight: 500; color: var(--text);
+    }
+
+    /* ===================== Form ===================== */
+    .field { display: grid; gap: 6px; margin-bottom: 12px; }
+    .field label { font-size: .875rem; font-weight: 600; }
+    .input-wrap { position: relative; }
+    .input-wrap .prefix {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      color: var(--muted); font-weight: 600; pointer-events: none;
+    }
+    .input-wrap input {
+      width: 100%; padding: 12px 12px 12px 34px; border: 1px solid var(--border);
+      border-radius: 10px; background: var(--surface); font-size: 1.1rem;
+    }
+    .input-wrap input:focus { outline: 2px solid var(--primary); outline-offset: 1px; border-color: transparent; }
+    .input-wrap input[aria-invalid="true"] { border-color: var(--error); }
+    .btn-primary {
+      width: 100%; border: 0; border-radius: 12px; padding: 14px;
+      background: var(--primary); color: var(--primary-ink); font-weight: 700; font-size: 1rem;
+    }
+    .btn-primary:active { transform: translateY(1px); }
+    .btn-danger {
+      border: 1px solid var(--error); color: var(--error); background: transparent;
+      border-radius: 10px; padding: 8px 14px; font-weight: 600; font-size: .875rem;
+    }
+
+    /* ===================== Messages ===================== */
+    .msg { border-radius: 10px; padding: 10px 12px; font-size: .875rem; margin: 12px 0 0; }
+    .msg.error { background: var(--error-soft); color: var(--error); }
+    .msg.warn { background: var(--warn-soft); color: var(--warn); }
+
+    /* ===================== Result ===================== */
+    .result-head { text-align: center; margin-bottom: 14px; }
+    .result-kicker { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .result-title { font-size: 1.8rem; font-weight: 800; color: var(--win); }
+    .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .tile {
+      border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--surface-2);
+    }
+    .tile.best { border: 2px solid var(--win); background: var(--win-soft); }
+    .tile-label { font-size: .78rem; color: var(--muted); font-weight: 600; }
+    .tile-amount { font-size: 1.15rem; font-weight: 700; word-break: break-word; }
+    .tile-sub { font-size: .8rem; color: var(--muted); }
+    .savings {
+      margin-top: 14px; text-align: center; font-weight: 700; font-size: 1.05rem;
+      padding: 10px; border-radius: 10px; background: var(--win-soft); color: var(--win);
+    }
+    .savings.neutral { background: var(--surface-2); color: var(--muted); }
+
+    /* ===================== History ===================== */
+    .history-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+    .history-head h2 { margin: 0; }
+    .history-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+    .h-item {
+      border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--surface-2);
+      display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center;
+    }
+    .h-date { font-size: .8rem; color: var(--muted); }
+    .h-prices { font-weight: 600; }
+    .h-rate { font-size: .8rem; color: var(--muted); }
+    .h-rec {
+      grid-row: 1 / span 3; grid-column: 2;
+      font-weight: 800; font-size: .9rem; padding: 6px 10px; border-radius: 10px;
+      background: var(--win-soft); color: var(--win); text-align: center;
+    }
+    .h-rec small { display: block; font-weight: 600; font-size: .72rem; }
+    .empty { text-align: center; color: var(--muted); padding: 24px 0; margin: 0; }
+
+    @media (min-width: 768px) {
+      main, .header-inner, .nav-row { max-width: 720px; }
+      #view-calculator { grid-template-columns: 1fr 1fr; align-items: start; }
+      #view-calculator > .span-2 { grid-column: 1 / -1; }
+      .history-list { grid-template-columns: 1fr 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) { .spin svg { animation: none; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div class="brand"><img src="./icon.svg" alt=""><span data-i18n="appTitle">USD or CRC?</span></div>
+      <span id="offline-chip" class="chip hidden" data-i18n="offline">Offline</span>
+      <div class="segmented" role="group" aria-label="Language">
+        <button type="button" data-lang="en" aria-pressed="true">EN</button>
+        <button type="button" data-lang="es" aria-pressed="false">ES</button>
+      </div>
+    </div>
+    <nav class="nav-row">
+      <div class="segmented" role="group">
+        <button type="button" data-view="calculator" aria-pressed="true" data-i18n="navCalc">Calculator</button>
+        <button type="button" data-view="history" aria-pressed="false" data-i18n="navHistory">History</button>
+      </div>
+    </nav>
+  </header>
+
+  <!-- ===================== Screen 1: Calculator ===================== -->
+  <main id="view-calculator">
+    <section class="card span-2" aria-live="polite">
+      <div class="rate-top">
+        <div class="rate-main">
+          <div class="rate-label" data-i18n="rateLabel">USD buy rate</div>
+          <div class="rate-value num" id="rate-value">—</div>
+          <div class="rate-meta">
+            <span class="badge hidden" id="rate-badge"></span>
+            <span id="rate-age"></span>
+          </div>
+        </div>
+        <button type="button" class="btn-icon" id="refresh-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+          <span data-i18n="refresh">Refresh</span>
+        </button>
+      </div>
+      <div class="bank-row hidden" id="bank-row">
+        <label for="bank-select" data-i18n="bank">Bank</label>
+        <select id="bank-select"></select>
+      </div>
+      <p class="msg hidden" id="rate-msg" role="status"></p>
+      <div class="manual-rate field hidden" id="manual-rate-field">
+        <label for="manual-rate" data-i18n="manualRate">Exchange rate (₡ per $1)</label>
+        <div class="input-wrap">
+          <span class="prefix">₡</span>
+          <input id="manual-rate" type="number" inputmode="decimal" step="any" min="0" placeholder="0.00">
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <form id="calc-form" novalidate>
+        <div class="field">
+          <label for="price-usd" data-i18n="priceUSD">Price in USD</label>
+          <div class="input-wrap">
+            <span class="prefix">$</span>
+            <input id="price-usd" type="number" inputmode="decimal" step="any" min="0" placeholder="0.00" autocomplete="off">
+          </div>
+        </div>
+        <div class="field">
+          <label for="price-crc" data-i18n="priceCRC">Price in CRC</label>
+          <div class="input-wrap">
+            <span class="prefix">₡</span>
+            <input id="price-crc" type="number" inputmode="decimal" step="any" min="0" placeholder="0" autocomplete="off">
+          </div>
+        </div>
+        <button type="submit" class="btn-primary" data-i18n="calculate">Calculate &amp; Save</button>
+        <p class="msg error hidden" id="form-msg" role="alert"></p>
+      </form>
+    </section>
+
+    <section class="card hidden" id="result-card" aria-live="polite">
+      <div class="result-head">
+        <div class="result-kicker" data-i18n="bestOption">Best option</div>
+        <div class="result-title" id="result-title"></div>
+      </div>
+      <div class="compare">
+        <div class="tile" id="tile-usd">
+          <div class="tile-label" data-i18n="payingUSD">Paying in USD</div>
+          <div class="tile-amount num" id="tile-usd-amount"></div>
+          <div class="tile-sub">&nbsp;</div>
+        </div>
+        <div class="tile" id="tile-crc">
+          <div class="tile-label" data-i18n="payingCRC">Paying in CRC</div>
+          <div class="tile-amount num" id="tile-crc-amount"></div>
+          <div class="tile-sub num" id="tile-crc-sub"></div>
+        </div>
+      </div>
+      <div class="savings num" id="savings"></div>
+    </section>
+  </main>
+
+  <!-- ===================== Screen 2: History ===================== -->
+  <main id="view-history" class="hidden">
+    <section class="card">
+      <div class="history-head">
+        <h2 data-i18n="historyTitle">History</h2>
+        <button type="button" class="btn-danger" id="clear-btn" data-i18n="clear">Clear history</button>
+      </div>
+      <p class="msg error hidden" id="history-msg" role="alert"></p>
+      <ul class="history-list" id="history-list"></ul>
+      <p class="empty hidden" id="history-empty" data-i18n="empty">No calculations yet.</p>
+    </section>
+  </main>
+
+  <script>
+  'use strict';
+
+  /* =========================================================================
+   * CONFIG
+   * ========================================================================= */
+  const CONFIG = {
+    DEFAULT_BANK: 'bac',          // id in RATE_PROVIDERS (kind: 'bank')
+    FALLBACK_PROVIDER: 'hacienda', // tried when the selected bank fails
+    TIMEOUT_MS: 6000,
+    KEYS: { history: 'fx_calculator_history', lastRate: 'fx_last_rate', lang: 'fx_lang', bank: 'fx_bank' },
+  };
+
+  /* =========================================================================
+   * RATE PROVIDERS — one entry per exchange-rate source.
+   *
+   * To add a bank, add an entry with:
+   *   kind:      'bank'  (shown in the bank selector) or 'official'
+   *   name:      full display name, e.g. 'Banco Nacional'
+   *   label:     short code shown on the badge and stored as `rateSource`
+   *   fetchRate: async (http) => number   // USD *buy* rate in CRC
+   *
+   * `http` gives you helpers: fetchText(url, opts), fetchJSON(url, opts),
+   * parseXML(text), cleanFloat(value). Throw on any failure; the service
+   * validates the returned number (> 0) and handles the fallback chain.
+   * The bank selector appears automatically once there are 2+ banks.
+   * ========================================================================= */
+  const RATE_PROVIDERS = {
+    bac: {
+      kind: 'bank',
+      name: 'BAC Credomatic',
+      label: 'BAC',
+      url: 'https://www.sucursalelectronica.com/exchangerate/showXmlExchangeRate.do',
+      /** XML: <country><name>Costa Rica</name><buyRateUSD>441.00</buyRateUSD>… */
+      async fetchRate(http) {
+        const xml = http.parseXML(await http.fetchText(this.url, { headers: { Accept: 'application/xml' } }));
+        for (const country of xml.getElementsByTagName('country')) {
+          const name = country.getElementsByTagName('name')[0];
+          if (name && name.textContent.trim() === 'Costa Rica') {
+            const buy = country.getElementsByTagName('buyRateUSD')[0];
+            return http.cleanFloat(buy && buy.textContent);
+          }
+        }
+        throw new Error('Costa Rica rate not found');
+      },
+    },
+
+    hacienda: {
+      kind: 'official',
+      name: 'Hacienda (BCCR)',
+      label: 'Hacienda',
+      url: 'https://api.hacienda.go.cr/indicadores/tc/dolar',
+      /** JSON: { compra: { fecha, valor }, venta: { … } } */
+      async fetchRate(http) {
+        const data = await http.fetchJSON(this.url);
+        return http.cleanFloat(data && data.compra && data.compra.valor);
+      },
+    },
+  };
+
+  /* =========================================================================
+   * I18N — UI strings in English and Spanish
+   * ========================================================================= */
+  const STRINGS = {
+    en: {
+      appTitle: 'USD or CRC?', offline: 'Offline', navCalc: 'Calculator', navHistory: 'History',
+      rateLabel: 'USD buy rate', refresh: 'Refresh', fetching: 'Fetching rate…',
+      manualRate: 'Exchange rate (₡ per $1)', priceUSD: 'Price in USD', priceCRC: 'Price in CRC',
+      calculate: 'Calculate & Save', bestOption: 'Best option', payIn: 'Pay in {cur}',
+      payingUSD: 'Paying in USD', payingCRC: 'Paying in CRC', approx: '≈ {amt}',
+      youSave: 'You save {amt}', noDiff: 'No difference — pay in USD',
+      historyTitle: 'History', clear: 'Clear history', confirmClear: 'Delete all saved calculations?',
+      empty: 'No calculations yet.', rate: 'Rate', saves: 'saves {amt}',
+      updated: 'Updated {age}', justNow: 'just now', asOf: 'as of {date}',
+      bank: 'Bank', src_Manual: 'Manual', src_Cached: 'Cached',
+      errUSD: 'Enter a valid USD price greater than 0.',
+      errCRC: 'Enter a valid CRC price greater than 0.',
+      errRate: 'Enter a valid exchange rate greater than 0.',
+      errFetch: "Couldn't get the rate from {bank} or Hacienda. Check or edit the rate below.",
+      errNoRate: "Couldn't get the rate from {bank} or Hacienda. Enter today's buy rate below.",
+      errOffline: "You're offline. Using the last known rate; edit it if needed.",
+      errOfflineNoRate: "You're offline and no rate is saved yet. Enter today's buy rate below.",
+      errStorage: "Couldn't save to history (storage full or blocked). The result is still shown.",
+      errStorageClear: "Couldn't clear history (storage blocked).",
+    },
+    es: {
+      appTitle: '¿USD o CRC?', offline: 'Sin conexión', navCalc: 'Calculadora', navHistory: 'Historial',
+      rateLabel: 'Tipo de cambio compra', refresh: 'Actualizar', fetching: 'Obteniendo tipo de cambio…',
+      manualRate: 'Tipo de cambio (₡ por $1)', priceUSD: 'Precio en USD', priceCRC: 'Precio en CRC',
+      calculate: 'Calcular y guardar', bestOption: 'Mejor opción', payIn: 'Pague en {cur}',
+      payingUSD: 'Pagando en USD', payingCRC: 'Pagando en CRC', approx: '≈ {amt}',
+      youSave: 'Ahorra {amt}', noDiff: 'Sin diferencia — pague en USD',
+      historyTitle: 'Historial', clear: 'Borrar historial', confirmClear: '¿Borrar todos los cálculos guardados?',
+      empty: 'Aún no hay cálculos.', rate: 'TC', saves: 'ahorra {amt}',
+      updated: 'Actualizado {age}', justNow: 'justo ahora', asOf: 'al {date}',
+      bank: 'Banco', src_Manual: 'Manual', src_Cached: 'En caché',
+      errUSD: 'Ingrese un precio en USD válido mayor que 0.',
+      errCRC: 'Ingrese un precio en CRC válido mayor que 0.',
+      errRate: 'Ingrese un tipo de cambio válido mayor que 0.',
+      errFetch: 'No se pudo obtener el tipo de cambio de {bank} ni de Hacienda. Revise o edite el valor abajo.',
+      errNoRate: 'No se pudo obtener el tipo de cambio de {bank} ni de Hacienda. Ingrese el tipo de compra de hoy.',
+      errOffline: 'Sin conexión. Se usa el último tipo de cambio conocido; edítelo si es necesario.',
+      errOfflineNoRate: 'Sin conexión y sin tipo de cambio guardado. Ingrese el tipo de compra de hoy.',
+      errStorage: 'No se pudo guardar en el historial (almacenamiento lleno o bloqueado). El resultado se muestra igual.',
+      errStorageClear: 'No se pudo borrar el historial (almacenamiento bloqueado).',
+    },
+  };
+
+  const I18n = {
+    lang: 'en',
+    /** Pick saved language, else browser language, else English. */
+    init() {
+      const saved = Store.get(CONFIG.KEYS.lang);
+      const browser = (navigator.language || 'en').slice(0, 2).toLowerCase();
+      this.lang = STRINGS[saved] ? saved : (STRINGS[browser] ? browser : 'en');
+    },
+    /** Translate a key, substituting {placeholders}. */
+    t(key, vars = {}) {
+      const str = (STRINGS[this.lang] && STRINGS[this.lang][key]) || STRINGS.en[key] || key;
+      return str.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] : ''));
+    },
+    locale() { return this.lang === 'es' ? 'es-CR' : 'en-US'; },
+  };
+
+  /* =========================================================================
+   * FORMATTING helpers
+   * ========================================================================= */
+  const Fmt = {
+    // narrowSymbol → "$" and "₡" in both locales (instead of "US$" / "CRC").
+    usd(n) { return new Intl.NumberFormat(I18n.locale(), { style: 'currency', currency: 'USD', currencyDisplay: 'narrowSymbol' }).format(n); },
+    crc(n) {
+      return new Intl.NumberFormat(I18n.locale(), { style: 'currency', currency: 'CRC', currencyDisplay: 'narrowSymbol', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+    },
+    dateTime(iso) {
+      return new Intl.DateTimeFormat(I18n.locale(), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
+    },
+    /** Human relative age such as "5 minutes ago". */
+    age(iso) {
+      const secs = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+      if (!isFinite(secs)) return '';
+      if (secs < 45) return I18n.t('justNow');
+      const rtf = new Intl.RelativeTimeFormat(I18n.locale(), { numeric: 'auto' });
+      const units = [['day', 86400], ['hour', 3600], ['minute', 60]];
+      for (const [unit, size] of units) {
+        if (secs >= size) return rtf.format(-Math.floor(secs / size), unit);
+      }
+      return I18n.t('justNow');
+    },
+  };
+
+  /* =========================================================================
+   * STORAGE — safe localStorage wrappers + history / last-rate helpers
+   * ========================================================================= */
+  const Store = {
+    get(key) { try { return localStorage.getItem(key); } catch { return null; } },
+    set(key, value) { localStorage.setItem(key, value); }, // throws on failure; callers handle
+    getJSON(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch { return fallback; }
+    },
+  };
+
+  const HistoryStore = {
+    /** Returns history array (newest first); corrupt data yields []. */
+    load() {
+      const data = Store.getJSON(CONFIG.KEYS.history, []);
+      return Array.isArray(data) ? data.filter(e => e && typeof e === 'object' && e.timestamp) : [];
+    },
+    /** Prepends an entry. Throws if storage is unavailable. */
+    add(entry) {
+      const list = this.load();
+      list.unshift(entry);
+      Store.set(CONFIG.KEYS.history, JSON.stringify(list));
+    },
+    clear() { localStorage.removeItem(CONFIG.KEYS.history); },
+  };
+
+  /* =========================================================================
+   * HTTP helpers handed to every rate provider
+   * ========================================================================= */
+  const Http = {
+    /** fetch() with an abort timeout; throws on non-2xx. */
+    async fetch(url, options = {}) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), CONFIG.TIMEOUT_MS);
+      try {
+        const res = await fetch(url, { ...options, signal: ctrl.signal, cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res;
+      } finally { clearTimeout(timer); }
+    },
+    async fetchText(url, options) { return (await Http.fetch(url, options)).text(); },
+    async fetchJSON(url, options) { return (await Http.fetch(url, options)).json(); },
+    parseXML(text) {
+      const xml = new DOMParser().parseFromString(text, 'application/xml');
+      if (xml.querySelector('parsererror')) throw new Error('invalid XML');
+      return xml;
+    },
+    /** Tolerant number parse: "520,50" → 520.5; invalid → 0. */
+    cleanFloat(value) {
+      if (value == null) return 0;
+      const n = parseFloat(String(value).trim().replace(',', '.'));
+      return isFinite(n) ? n : 0;
+    },
+  };
+
+  /* =========================================================================
+   * RATE SERVICE — selected bank → official fallback → manual
+   * ========================================================================= */
+  const RateService = {
+    /** All providers of kind 'bank', as [id, provider] pairs. */
+    banks() { return Object.entries(RATE_PROVIDERS).filter(([, p]) => p.kind === 'bank'); },
+
+    /** Saved bank if still valid, else CONFIG.DEFAULT_BANK. */
+    selectedBankId() {
+      const saved = Store.get(CONFIG.KEYS.bank);
+      const isBank = (id) => RATE_PROVIDERS[id] && RATE_PROVIDERS[id].kind === 'bank';
+      return isBank(saved) ? saved : CONFIG.DEFAULT_BANK;
+    },
+    setBank(id) {
+      if (!RATE_PROVIDERS[id]) return;
+      try { Store.set(CONFIG.KEYS.bank, id); } catch { /* non-critical */ }
+    },
+
+    /** Fetches and validates a rate from one provider. */
+    async fetchFrom(id) {
+      const p = RATE_PROVIDERS[id];
+      if (!p) throw new Error(`unknown provider "${id}"`);
+      const rate = Number(await p.fetchRate(Http));
+      if (!(isFinite(rate) && rate > 0)) throw new Error('invalid rate');
+      return { rate, source: p.label, provider: id, fetchedAt: new Date().toISOString() };
+    },
+
+    /** Runs the chain; throws if every automatic source fails (or offline). */
+    async resolve() {
+      if (!navigator.onLine) throw new Error('offline');
+      const chain = [...new Set([this.selectedBankId(), CONFIG.FALLBACK_PROVIDER])];
+      for (const id of chain) {
+        try { return await this.fetchFrom(id); }
+        catch (e) { console.warn(`[rate] ${id} failed:`, e.message); }
+      }
+      throw new Error('all sources failed');
+    },
+
+    saveLast(r) {
+      try { Store.set(CONFIG.KEYS.lastRate, JSON.stringify(r)); } catch { /* non-critical */ }
+    },
+
+    /** Most recent known rate: newer of fx_last_rate and the newest history entry. */
+    mostRecentKnown() {
+      const candidates = [];
+      const last = Store.getJSON(CONFIG.KEYS.lastRate, null);
+      if (last && last.rate > 0) candidates.push({ rate: +last.rate, fetchedAt: last.fetchedAt });
+      const newest = HistoryStore.load()[0];
+      if (newest && newest.fxRateBuy > 0) candidates.push({ rate: +newest.fxRateBuy, fetchedAt: newest.timestamp });
+      candidates.sort((a, b) => new Date(b.fetchedAt) - new Date(a.fetchedAt));
+      return candidates[0] || null;
+    },
+  };
+
+  /* =========================================================================
+   * CALCULATOR — pure financial logic
+   * ========================================================================= */
+  const Calculator = {
+    round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; },
+
+    /** Parses an <input type=number>; returns a positive finite number or null. */
+    parsePositive(input) {
+      if (input.validity && input.validity.badInput) return null; // text typed into number field
+      const raw = String(input.value).trim();
+      if (raw === '') return null;
+      const n = Number(raw.replace(',', '.'));
+      return isFinite(n) && n > 0 ? n : null;
+    },
+
+    /**
+     * cost of CRC in USD = P_crc / FX_buy. Compared at cent precision:
+     * CRC wins only if strictly cheaper; ties go to USD.
+     */
+    compute(priceUSD, priceCRC, fxRateBuy) {
+      const costCrcInUsd = priceCRC / fxRateBuy;
+      const diff = this.round2(priceUSD - costCrcInUsd);
+      return {
+        costCrcInUsd,
+        recommended: diff > 0 ? 'CRC' : 'USD',
+        savingsUSD: Math.abs(diff),
+      };
+    },
+  };
+
+  /* =========================================================================
+   * UI — DOM references, rendering and event handlers
+   * ========================================================================= */
+  const $ = (id) => document.getElementById(id);
+  const el = {
+    offlineChip: $('offline-chip'),
+    rateValue: $('rate-value'), rateBadge: $('rate-badge'), rateAge: $('rate-age'),
+    rateMsg: $('rate-msg'), refreshBtn: $('refresh-btn'),
+    bankRow: $('bank-row'), bankSelect: $('bank-select'),
+    manualField: $('manual-rate-field'), manualInput: $('manual-rate'),
+    form: $('calc-form'), usd: $('price-usd'), crc: $('price-crc'), formMsg: $('form-msg'),
+    resultCard: $('result-card'), resultTitle: $('result-title'),
+    tileUsd: $('tile-usd'), tileCrc: $('tile-crc'),
+    tileUsdAmount: $('tile-usd-amount'), tileCrcAmount: $('tile-crc-amount'), tileCrcSub: $('tile-crc-sub'),
+    savings: $('savings'),
+    viewCalc: $('view-calculator'), viewHistory: $('view-history'),
+    historyList: $('history-list'), historyEmpty: $('history-empty'), historyMsg: $('history-msg'),
+    clearBtn: $('clear-btn'),
+  };
+
+  const state = {
+    rate: null,        // { rate, source, fetchedAt } from API, or last known (manual mode)
+    manual: false,     // true when automatic sources failed / offline
+    rateMsgKey: null,  // current rate message (re-rendered on language change)
+    lastResult: null,  // last computed entry (re-rendered on language change)
+    loading: false,
+  };
+
+  const UI = {
+    /** Apply translations to all [data-i18n] nodes. */
+    applyI18n() {
+      document.documentElement.lang = I18n.lang;
+      document.title = I18n.t('appTitle');
+      document.querySelectorAll('[data-i18n]').forEach(n => { n.textContent = I18n.t(n.dataset.i18n); });
+      document.querySelectorAll('[data-lang]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === I18n.lang)));
+      this.renderRate();
+      if (state.lastResult) this.renderResult(state.lastResult);
+      this.renderHistory();
+    },
+
+    /** Badge text for a source code: translated for Manual/Cached, provider label otherwise. */
+    sourceLabel(src) {
+      return STRINGS.en['src_' + src] ? I18n.t('src_' + src) : src;
+    },
+
+    /** Fills the bank <select>; only visible when there are 2+ banks. */
+    renderBankSelect() {
+      const banks = RateService.banks();
+      el.bankRow.classList.toggle('hidden', banks.length < 2);
+      el.bankSelect.replaceChildren(...banks.map(([id, p]) => new Option(p.name, id)));
+      el.bankSelect.value = RateService.selectedBankId();
+    },
+
+    showMsg(node, text, kind = 'error') {
+      node.textContent = text;
+      node.className = `msg ${kind}`;
+    },
+    hideMsg(node) { node.className = 'msg hidden'; node.textContent = ''; },
+
+    /** Effective rate the calculator will use right now. */
+    currentRate() {
+      if (!state.manual) return state.rate ? { ...state.rate } : null;
+      const n = Calculator.parsePositive(el.manualInput);
+      if (n == null) return null;
+      const unchanged = state.rate && Math.abs(n - state.rate.rate) < 1e-9;
+      return unchanged
+        ? { rate: n, source: 'Cached', fetchedAt: state.rate.fetchedAt }
+        : { rate: n, source: 'Manual', fetchedAt: null };
+    },
+
+    renderRate() {
+      const r = this.currentRate();
+      el.rateValue.textContent = state.loading && !r ? I18n.t('fetching') : (r ? Fmt.crc(r.rate) : '—');
+      if (r) {
+        el.rateBadge.textContent = this.sourceLabel(r.source);
+        el.rateBadge.className = 'badge ' + r.source.toLowerCase();
+      } else {
+        el.rateBadge.className = 'badge hidden';
+      }
+      el.rateAge.textContent = r && r.fetchedAt ? I18n.t('updated', { age: Fmt.age(r.fetchedAt) }) : '';
+      el.refreshBtn.disabled = state.loading;
+      el.refreshBtn.classList.toggle('spin', state.loading);
+      el.manualField.classList.toggle('hidden', !state.manual);
+      const bank = RATE_PROVIDERS[RateService.selectedBankId()];
+      if (state.rateMsgKey) this.showMsg(el.rateMsg, I18n.t(state.rateMsgKey, { bank: bank ? bank.label : '' }), 'warn');
+      else this.hideMsg(el.rateMsg);
+    },
+
+    renderResult(entry) {
+      const { priceUSD, priceCRC, fxRateBuy, recommended, savingsUSD } = entry;
+      const costCrcInUsd = priceCRC / fxRateBuy;
+      el.resultTitle.textContent = I18n.t('payIn', { cur: recommended });
+      el.tileUsdAmount.textContent = Fmt.usd(priceUSD);
+      el.tileCrcAmount.textContent = Fmt.crc(priceCRC);
+      el.tileCrcSub.textContent = I18n.t('approx', { amt: Fmt.usd(costCrcInUsd) });
+      el.tileUsd.classList.toggle('best', recommended === 'USD');
+      el.tileCrc.classList.toggle('best', recommended === 'CRC');
+      if (savingsUSD > 0) {
+        el.savings.textContent = I18n.t('youSave', { amt: Fmt.usd(savingsUSD) });
+        el.savings.className = 'savings num';
+      } else {
+        el.savings.textContent = I18n.t('noDiff');
+        el.savings.className = 'savings num neutral';
+      }
+      el.resultCard.classList.remove('hidden');
+    },
+
+    renderHistory() {
+      const list = HistoryStore.load();
+      el.historyList.replaceChildren();
+      el.historyEmpty.classList.toggle('hidden', list.length > 0);
+      el.clearBtn.disabled = list.length === 0;
+      for (const e of list) {
+        const li = document.createElement('li');
+        li.className = 'h-item';
+        const mk = (cls, text, tag = 'div') => { const n = document.createElement(tag); n.className = cls; n.textContent = text; return n; };
+        const src = e.rateSource ? ` · ${this.sourceLabel(e.rateSource)}` : '';
+        li.append(
+          mk('h-date', Fmt.dateTime(e.timestamp)),
+          mk('h-prices num', `${Fmt.usd(e.priceUSD)}  vs  ${Fmt.crc(e.priceCRC)}`),
+          mk('h-rate num', `${I18n.t('rate')}: ${Fmt.crc(e.fxRateBuy)}${src}`),
+        );
+        const rec = mk('h-rec', e.recommended);
+        if (e.savingsUSD > 0) rec.append(mk('', I18n.t('saves', { amt: Fmt.usd(e.savingsUSD) }), 'small'));
+        li.append(rec);
+        el.historyList.append(li);
+      }
+    },
+
+    showView(view) {
+      el.viewCalc.classList.toggle('hidden', view !== 'calculator');
+      el.viewHistory.classList.toggle('hidden', view !== 'history');
+      document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === view)));
+      if (view === 'history') { this.hideMsg(el.historyMsg); this.renderHistory(); }
+      window.scrollTo(0, 0);
+    },
+
+    updateOnlineChip() { el.offlineChip.classList.toggle('hidden', navigator.onLine); },
+  };
+
+  /* =========================================================================
+   * CONTROLLER — wiring actions together
+   * ========================================================================= */
+  async function refreshRate() {
+    if (state.loading) return;
+    state.loading = true;
+    UI.renderRate();
+    try {
+      const r = await RateService.resolve();
+      state.rate = r;
+      state.manual = false;
+      state.rateMsgKey = null;
+      RateService.saveLast(r);
+    } catch (err) {
+      // Fall back to manual entry, pre-filled with the most recent known rate.
+      const known = RateService.mostRecentKnown();
+      state.manual = true;
+      state.rate = known ? { rate: known.rate, source: 'Cached', fetchedAt: known.fetchedAt } : null;
+      el.manualInput.value = known ? known.rate : '';
+      const offline = !navigator.onLine;
+      state.rateMsgKey = offline ? (known ? 'errOffline' : 'errOfflineNoRate') : (known ? 'errFetch' : 'errNoRate');
+    } finally {
+      state.loading = false;
+      UI.renderRate();
+    }
+  }
+
+  function handleCalculate(event) {
+    event.preventDefault();
+    UI.hideMsg(el.formMsg);
+    [el.usd, el.crc, el.manualInput].forEach(i => i.removeAttribute('aria-invalid'));
+
+    // --- Validate inputs ---
+    const priceUSD = Calculator.parsePositive(el.usd);
+    const priceCRC = Calculator.parsePositive(el.crc);
+    const rate = UI.currentRate();
+    const fail = (input, key) => { input.setAttribute('aria-invalid', 'true'); input.focus(); UI.showMsg(el.formMsg, I18n.t(key)); };
+    if (priceUSD == null) return fail(el.usd, 'errUSD');
+    if (priceCRC == null) return fail(el.crc, 'errCRC');
+    if (!rate) {
+      if (state.manual) return fail(el.manualInput, 'errRate');
+      UI.showMsg(el.formMsg, I18n.t('errRate'));
+      return;
+    }
+
+    // --- Compute & persist ---
+    const { recommended, savingsUSD } = Calculator.compute(priceUSD, priceCRC, rate.rate);
+    const entry = {
+      id: String(Date.now()),
+      timestamp: new Date().toISOString(),
+      priceUSD: Calculator.round2(priceUSD),
+      priceCRC: Calculator.round2(priceCRC),
+      fxRateBuy: rate.rate,
+      rateSource: rate.source,
+      recommended,
+      savingsUSD,
+    };
+    state.lastResult = entry;
+    UI.renderResult(entry);
+    try { HistoryStore.add(entry); }
+    catch (e) { UI.showMsg(el.formMsg, I18n.t('errStorage'), 'warn'); }
+    el.resultCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function handleClearHistory() {
+    if (!confirm(I18n.t('confirmClear'))) return;
+    try { HistoryStore.clear(); UI.hideMsg(el.historyMsg); }
+    catch { UI.showMsg(el.historyMsg, I18n.t('errStorageClear')); }
+    UI.renderHistory();
+  }
+
+  function setLanguage(lang) {
+    I18n.lang = lang;
+    try { Store.set(CONFIG.KEYS.lang, lang); } catch { /* non-critical */ }
+    UI.applyI18n();
+  }
+
+  /* =========================================================================
+   * PWA — service worker + persistent storage
+   * ========================================================================= */
+  function initPWA() {
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => console.warn('[sw] registration failed:', err));
+      });
+    }
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().catch(() => {});
+    }
+  }
+
+  /* =========================================================================
+   * INIT
+   * ========================================================================= */
+  function init() {
+    I18n.init();
+    UI.renderBankSelect();
+    UI.applyI18n();
+    UI.updateOnlineChip();
+
+    el.bankSelect.addEventListener('change', () => { RateService.setBank(el.bankSelect.value); refreshRate(); });
+
+    el.form.addEventListener('submit', handleCalculate);
+    el.refreshBtn.addEventListener('click', refreshRate);
+    el.clearBtn.addEventListener('click', handleClearHistory);
+    el.manualInput.addEventListener('input', () => UI.renderRate());
+    document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => UI.showView(b.dataset.view)));
+    document.querySelectorAll('[data-lang]').forEach(b => b.addEventListener('click', () => setLanguage(b.dataset.lang)));
+
+    window.addEventListener('online', () => { UI.updateOnlineChip(); if (state.manual) refreshRate(); });
+    window.addEventListener('offline', () => UI.updateOnlineChip());
+    // Keep the "Updated x min ago" label fresh.
+    setInterval(() => { if (!state.loading) UI.renderRate(); }, 60000);
+
+    initPWA();
+    refreshRate();
+  }
+
+  init();
+  </script>
+</body>
+</html>

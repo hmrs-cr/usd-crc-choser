@@ -1,0 +1,20 @@
+{
+  "name": "USD or CRC? — Payment Optimizer",
+  "short_name": "USD/CRC",
+  "description": "Decide whether paying in USD or CRC is cheaper, using the bank buy rate.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3f6f6",
+  "theme_color": "#0f766e",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
