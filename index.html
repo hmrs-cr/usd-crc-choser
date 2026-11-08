@@ -180,6 +180,12 @@
     .tile-label { font-size: .78rem; color: var(--muted); font-weight: 600; }
     .tile-amount { font-size: 1.15rem; font-weight: 700; word-break: break-word; }
     .tile-sub { font-size: .8rem; color: var(--muted); }
+    .rates-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;
+      padding: 10px 12px; border: 1px dashed var(--border); border-radius: 12px;
+    }
+    .rates-value { font-weight: 700; }
+    .rates-value small { font-weight: 500; color: var(--muted); }
     .savings {
       margin-top: 14px; text-align: center; font-weight: 700; font-size: 1.05rem;
       padding: 10px; border-radius: 10px; background: var(--win-soft); color: var(--win);
@@ -301,6 +307,16 @@
           <div class="tile-sub num" id="tile-crc-sub"></div>
         </div>
       </div>
+      <div class="rates-row">
+        <div>
+          <div class="tile-label" data-i18n="merchantRate">Merchant rate</div>
+          <div class="rates-value num" id="merchant-rate"></div>
+        </div>
+        <div>
+          <div class="tile-label" data-i18n="yourRate">Your rate</div>
+          <div class="rates-value num" id="your-rate"></div>
+        </div>
+      </div>
       <div class="savings num" id="savings"></div>
     </section>
   </main>
@@ -389,6 +405,7 @@
       calculate: 'Calculate & Save', bestOption: 'Best option', payIn: 'Pay in {cur}',
       payingUSD: 'Paying in USD', payingCRC: 'Paying in CRC', approx: '≈ {amt}',
       youSave: 'You save {amt}', noDiff: 'No difference — pay in USD',
+      merchantRate: 'Merchant rate', yourRate: 'Your rate', perUsd: 'per $1',
       historyTitle: 'History', clear: 'Clear history', confirmClear: 'Delete all saved calculations?',
       empty: 'No calculations yet.', rate: 'Rate', saves: 'saves {amt}',
       updated: 'Updated {age}', justNow: 'just now', asOf: 'as of {date}',
@@ -410,6 +427,7 @@
       calculate: 'Calcular y guardar', bestOption: 'Mejor opción', payIn: 'Pague en {cur}',
       payingUSD: 'Pagando en USD', payingCRC: 'Pagando en CRC', approx: '≈ {amt}',
       youSave: 'Ahorra {amt}', noDiff: 'Sin diferencia — pague en USD',
+      merchantRate: 'TC del comercio', yourRate: 'Su TC', perUsd: 'por $1',
       historyTitle: 'Historial', clear: 'Borrar historial', confirmClear: '¿Borrar todos los cálculos guardados?',
       empty: 'Aún no hay cálculos.', rate: 'TC', saves: 'ahorra {amt}',
       updated: 'Actualizado {age}', justNow: 'justo ahora', asOf: 'al {date}',
@@ -624,7 +642,7 @@
     resultCard: $('result-card'), resultTitle: $('result-title'),
     tileUsd: $('tile-usd'), tileCrc: $('tile-crc'),
     tileUsdAmount: $('tile-usd-amount'), tileCrcAmount: $('tile-crc-amount'), tileCrcSub: $('tile-crc-sub'),
-    savings: $('savings'),
+    savings: $('savings'), merchantRate: $('merchant-rate'), yourRate: $('your-rate'),
     viewCalc: $('view-calculator'), viewHistory: $('view-history'),
     historyList: $('history-list'), historyEmpty: $('history-empty'), historyMsg: $('history-msg'),
     clearBtn: $('clear-btn'),
@@ -707,6 +725,14 @@
       el.tileCrcSub.textContent = I18n.t('approx', { amt: Fmt.usd(costCrcInUsd) });
       el.tileUsd.classList.toggle('best', recommended === 'USD');
       el.tileCrc.classList.toggle('best', recommended === 'CRC');
+      // Merchant's implied rate (P_crc / P_usd) vs the user's bank buy rate.
+      const setRate = (node, value) => {
+        const small = document.createElement('small');
+        small.textContent = ' ' + I18n.t('perUsd');
+        node.replaceChildren(Fmt.crc(value), small);
+      };
+      setRate(el.merchantRate, priceCRC / priceUSD);
+      setRate(el.yourRate, fxRateBuy);
       if (savingsUSD > 0) {
         el.savings.textContent = I18n.t('youSave', { amt: Fmt.usd(savingsUSD) });
         el.savings.className = 'savings num';
