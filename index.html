@@ -344,6 +344,7 @@
     DEFAULT_BANK: 'bac',          // id in RATE_PROVIDERS (kind: 'bank')
     FALLBACK_PROVIDER: 'hacienda', // tried when the selected bank fails
     TIMEOUT_MS: 6000,
+    RATE_TTL_MS: 7 * 60 * 1000,    // reuse a fetched rate for 7 minutes before calling the APIs again
     KEYS: { history: 'fx_calculator_history', lastRate: 'fx_last_rate', lang: 'fx_lang', bank: 'fx_bank' },
   };
 
@@ -586,6 +587,17 @@
       try { Store.set(CONFIG.KEYS.lastRate, JSON.stringify(r)); } catch { /* non-critical */ }
     },
 
+    /**
+     * Throttle: returns the saved rate if it was fetched less than
+     * CONFIG.RATE_TTL_MS ago for the currently selected bank, else null.
+     */
+    freshCached() {
+      const last = Store.getJSON(CONFIG.KEYS.lastRate, null);
+      if (!last || !(last.rate > 0) || last.bank !== this.selectedBankId()) return null;
+      const age = Date.now() - new Date(last.fetchedAt).getTime();
+      return age >= 0 && age < CONFIG.RATE_TTL_MS ? last : null;
+    },
+
     /** Most recent known rate: newer of fx_last_rate and the newest history entry. */
     mostRecentKnown() {
       const candidates = [];
@@ -781,10 +793,21 @@
    * ========================================================================= */
   async function refreshRate() {
     if (state.loading) return;
+
+    // Throttle: reuse a rate fetched within the last CONFIG.RATE_TTL_MS.
+    const cached = RateService.freshCached();
+    if (cached) {
+      state.rate = cached;
+      state.manual = false;
+      state.rateMsgKey = null;
+      UI.renderRate();
+      return;
+    }
+
     state.loading = true;
     UI.renderRate();
     try {
-      const r = await RateService.resolve();
+      const r = { ...(await RateService.resolve()), bank: RateService.selectedBankId() };
       state.rate = r;
       state.manual = false;
       state.rateMsgKey = null;
@@ -887,6 +910,9 @@
 
     window.addEventListener('online', () => { UI.updateOnlineChip(); if (state.manual) refreshRate(); });
     window.addEventListener('offline', () => UI.updateOnlineChip());
+    // Installed PWAs resume without reloading: re-check the rate when the app comes back
+    // to the foreground (no network call if the cached rate is under 7 minutes old).
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshRate(); });
     // Keep the "Updated x min ago" label fresh.
     setInterval(() => { if (!state.loading) UI.renderRate(); }, 60000);
 
