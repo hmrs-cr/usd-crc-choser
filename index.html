@@ -246,6 +246,14 @@
     }
     a.btn-primary { display: block; text-align: center; text-decoration: none; }
 
+    /* ===================== Footer ===================== */
+    .site-footer {
+      max-width: 560px; margin: 0 auto; padding: 8px 16px 24px;
+      text-align: center; font-size: .78rem; color: var(--muted);
+    }
+    .site-footer a { color: var(--muted); font-weight: 600; text-underline-offset: 2px; }
+    .site-footer a:hover, .site-footer a:focus-visible { color: var(--primary); }
+
     @media (min-width: 768px) {
       main, .header-inner, .nav-row { max-width: 720px; }
       #view-calculator { grid-template-columns: 1fr 1fr; align-items: start; }
@@ -383,6 +391,11 @@
     </section>
   </main>
 
+  <footer class="site-footer hidden" id="site-footer">
+    <span data-i18n="footerText">Find this useful?</span>
+    <a id="footer-donate" target="_blank" rel="noopener noreferrer"></a>
+  </footer>
+
   <script>
   'use strict';
 
@@ -402,6 +415,7 @@
       MIN_USD: 2,              // floor so PayPal's fixed fee doesn't eat tiny donations
       SHOW_AFTER_USD: 10,      // only ask once total savings reach this
       SNOOZE_DAYS: 30,         // "Not now" hides the card this long
+      FOOTER_USD: 10,          // fixed amount for the always-visible footer link
     },
   };
 
@@ -484,6 +498,7 @@
       donateTotal: "You've saved {amt}",
       donateText: 'If it helped, consider leaving a small share of what you saved.',
       donateBtn: 'Donate {amt} with PayPal',
+      footerText: 'Find this useful?', footerLink: 'Buy me a coffee ({amt})',
     },
     es: {
       appTitle: '¿USD o CRC?', offline: 'Sin conexión', navCalc: 'Calculadora', navHistory: 'Historial',
@@ -513,6 +528,7 @@
       donateTotal: 'Ha ahorrado {amt}',
       donateText: 'Si le ha sido útil, considere dejar una pequeña parte de lo que ahorró.',
       donateBtn: 'Donar {amt} con PayPal',
+      footerText: '¿Le resulta útil?', footerLink: 'Invíteme un café ({amt})',
     },
   };
 
@@ -802,6 +818,7 @@
     clearBtn: $('clear-btn'), labelSuggestions: $('label-suggestions'),
     donateCard: $('donate-card'), donateTotal: $('donate-total'), donatePcts: $('donate-pcts'),
     donateLink: $('donate-link'), donateDismiss: $('donate-dismiss'),
+    footer: $('site-footer'), footerDonate: $('footer-donate'),
   };
 
   const state = {
@@ -823,6 +840,16 @@
       this.renderRate();
       if (state.lastResult) this.renderResult(state.lastResult);
       this.renderHistory();
+      this.renderFooter();
+    },
+
+    /** Small permanent footer link with a fixed PayPal amount. */
+    renderFooter() {
+      el.footer.classList.toggle('hidden', !Donate.enabled());
+      if (!Donate.enabled()) return;
+      const amt = CONFIG.DONATE.FOOTER_USD;
+      el.footerDonate.href = Donate.url(amt);
+      el.footerDonate.textContent = I18n.t('footerLink', { amt: Fmt.usd(amt).replace(/[.,]00$/, '') }); // "$10", not "$10.00"
     },
 
     /** Badge text for a source code: translated for Manual/Cached, provider label otherwise. */
