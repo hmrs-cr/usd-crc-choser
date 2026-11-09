@@ -13,8 +13,9 @@ Built for people who **earn in USD and spend in Costa Rica**: paying in colones 
   1. **Commercial bank** buy rate (the rate you actually get)
   2. **Hacienda / BCCR** official buy rate, if the bank rate is unavailable
   3. **Manual entry**, pre-filled with the last known rate
-- **History** of past calculations, stored only on your device.
+- **History** of past calculations, stored only on your device, with optional labels on each entry.
 - **Works offline** and can be **installed to your home screen** (PWA).
+- **Optional donation prompt**: once your total savings reach $10, History suggests donating 5/10/15% of what you saved via PayPal (set `CONFIG.DONATE.PAYPAL_ME`; empty hides it).
 - **English / Español** toggle.
 - Light and dark mode, mobile-first design.
 - No accounts, no tracking, no backend, no dependencies.
@@ -64,8 +65,9 @@ Everything stays in your browser's `localStorage`:
 | `fx_calculator_history` | Your saved calculations |
 | `fx_last_rate` | Last fetched exchange rate (used offline) |
 | `fx_lang` | Language preference |
+| `fx_donate_snooze` | When a dismissed donation prompt may show again |
 
-The only network requests go to the exchange-rate sources: a commercial bank's public rate feed and `api.hacienda.go.cr` (Hacienda).
+The only network requests go to the exchange-rate sources: a commercial bank's public rate feed and `api.hacienda.go.cr` (Hacienda). The donate button is a plain link to PayPal and only opens when you tap it.
 
 ## Adding a bank
 

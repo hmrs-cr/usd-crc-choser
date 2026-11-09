@@ -48,6 +48,8 @@ The UI must be responsive, featuring a clean, modern interface that works seamle
 *   **Header:** Title and navigation toggle (Back to Calculator).
 *   **Data Table / List:** A chronological list of past calculations (newest first), with an empty-state message.
 *   **History Item Details:** Date/Time, USD Price, CRC Price, Exchange Rate used, and the Recommended Currency.
+*   **Labels:** Each item can carry free-text labels (e.g. "Groceries"), shown as removable chips. A "+ Label" button opens an inline input (Enter saves, Esc cancels, commas add several); previously used labels are suggested.
+*   **Support card (optional):** Shown above the list when total `savingsUSD` across history ≥ `CONFIG.DONATE.SHOW_AFTER_USD` ($10). Offers 5 / 10 / 15 % of total savings (minimum $2) and a "Donate with PayPal" link to `paypal.me/<name>/<amount>USD`. "Not now" hides it for 30 days. Hidden if `CONFIG.DONATE.PAYPAL_ME` is empty.
 *   **Action:** "Clear History" button to wipe local storage (with a confirmation prompt).
 
 ## 5. External API Integration
@@ -83,13 +85,15 @@ All data must be persisted in the browser's `localStorage` (wrap reads/writes in
         "fxRateBuy": 510.50,
         "rateSource": "Hacienda",
         "recommended": "USD",
-        "savingsUSD": 1.86
+        "savingsUSD": 1.86,
+        "labels": ["Groceries"]
       }
     ]
     ```
-    `rateSource` is the bank source code, `"Hacienda"`, `"Manual"`, or `"Cached"`.
+    `rateSource` is the bank source code, `"Hacienda"`, `"Manual"`, or `"Cached"`. `labels` is optional (missing on older entries).
 *   **`fx_last_rate`** — Most recent successfully fetched rate: `{ "rate": 446.56, "source": "Hacienda", "fetchedAt": "2026-11-08T10:30:00Z" }`.
 *   **`fx_lang`** — `"en"` or `"es"`.
+*   **`fx_donate_snooze`** — Epoch ms until which the support card stays hidden.
 
 ## 7. Offline Support (PWA)
 The app must be cached as long as possible so it works without a connection.

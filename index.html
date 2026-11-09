@@ -209,7 +209,42 @@
       background: var(--win-soft); color: var(--win); text-align: center;
     }
     .h-rec small { display: block; font-weight: 600; font-size: .72rem; }
+    .h-labels { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+    .h-label {
+      display: inline-flex; align-items: center; gap: 2px; max-width: 100%;
+      font-size: .75rem; font-weight: 600; padding: 2px 2px 2px 10px; border-radius: 999px;
+      background: var(--accent-soft); color: var(--primary); overflow-wrap: anywhere;
+    }
+    .h-label-x {
+      border: 0; background: transparent; color: inherit; padding: 0 6px;
+      font-size: 1rem; line-height: 1; border-radius: 999px;
+    }
+    .h-label-add {
+      border: 1px dashed var(--border); background: transparent; color: var(--muted);
+      border-radius: 999px; padding: 2px 10px; font-size: .75rem; font-weight: 600;
+    }
+    .h-label-form { display: inline-flex; }
+    .h-label-input {
+      /* 16px keeps iOS Safari from zooming in on focus */
+      font-size: 16px; width: 170px; max-width: 100%; padding: 3px 10px;
+      border: 1px solid var(--border); border-radius: 999px; background: var(--surface);
+    }
+    .h-label-input:focus { outline: 2px solid var(--primary); outline-offset: 1px; border-color: transparent; }
     .empty { text-align: center; color: var(--muted); padding: 24px 0; margin: 0; }
+
+    /* ===================== Donate ===================== */
+    .donate-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .donate-head h2 { margin: 0 0 4px; }
+    .donate-total { font-size: 1.5rem; font-weight: 800; color: var(--win); }
+    .donate-text { font-size: .875rem; color: var(--muted); margin: 4px 0 12px; }
+    .donate-pcts { display: flex; width: 100%; margin-bottom: 12px; }
+    .donate-pcts button { flex: 1; display: grid; gap: 0; line-height: 1.2; }
+    .donate-pcts button small { font-weight: 500; font-size: .75rem; }
+    .btn-link {
+      border: 0; background: transparent; color: var(--muted); font-size: .8rem; font-weight: 600;
+      padding: 4px 6px; text-decoration: underline;
+    }
+    a.btn-primary { display: block; text-align: center; text-decoration: none; }
 
     @media (min-width: 768px) {
       main, .header-inner, .nav-row { max-width: 720px; }
@@ -323,6 +358,19 @@
 
   <!-- ===================== Screen 2: History ===================== -->
   <main id="view-history" class="hidden">
+    <section class="card hidden" id="donate-card" aria-labelledby="donate-title">
+      <div class="donate-head">
+        <div>
+          <h2 id="donate-title" data-i18n="donateTitle">Support this app</h2>
+          <div class="donate-total num" id="donate-total"></div>
+        </div>
+        <button type="button" class="btn-link" id="donate-dismiss" data-i18n="notNow">Not now</button>
+      </div>
+      <p class="donate-text" data-i18n="donateText">If it helped, consider leaving a small share of what you saved.</p>
+      <div class="segmented donate-pcts" role="group" id="donate-pcts"></div>
+      <a class="btn-primary num" id="donate-link" target="_blank" rel="noopener noreferrer"></a>
+    </section>
+
     <section class="card">
       <div class="history-head">
         <h2 data-i18n="historyTitle">History</h2>
@@ -330,6 +378,7 @@
       </div>
       <p class="msg error hidden" id="history-msg" role="alert"></p>
       <ul class="history-list" id="history-list"></ul>
+      <datalist id="label-suggestions"></datalist>
       <p class="empty hidden" id="history-empty" data-i18n="empty">No calculations yet.</p>
     </section>
   </main>
@@ -345,7 +394,15 @@
     FALLBACK_PROVIDER: 'hacienda', // tried when the selected bank fails
     TIMEOUT_MS: 6000,
     RATE_TTL_MS: 7 * 60 * 1000,    // reuse a fetched rate for 7 minutes before calling the APIs again
-    KEYS: { history: 'fx_calculator_history', lastRate: 'fx_last_rate', lang: 'fx_lang', bank: 'fx_bank' },
+    KEYS: { history: 'fx_calculator_history', lastRate: 'fx_last_rate', lang: 'fx_lang', bank: 'fx_bank', donateSnooze: 'fx_donate_snooze' },
+    DONATE: {
+      PAYPAL_ME: 'hmrscr',   // your paypal.me username; '' hides the donate card
+      PERCENTS: [5, 10, 15],   // share-of-savings options
+      DEFAULT_PERCENT: 10,
+      MIN_USD: 2,              // floor so PayPal's fixed fee doesn't eat tiny donations
+      SHOW_AFTER_USD: 10,      // only ask once total savings reach this
+      SNOOZE_DAYS: 30,         // "Not now" hides the card this long
+    },
   };
 
   /* =========================================================================
@@ -420,6 +477,13 @@
       errOfflineNoRate: "You're offline and no rate is saved yet. Enter today's buy rate below.",
       errStorage: "Couldn't save to history (storage full or blocked). The result is still shown.",
       errStorageClear: "Couldn't clear history (storage blocked).",
+      addLabel: '+ Label', labelPlaceholder: 'e.g. Groceries', labelInput: 'New label',
+      removeLabel: 'Remove label "{label}"',
+      errStorageLabel: "Couldn't save the label (storage full or blocked).",
+      donateTitle: 'Support this app', notNow: 'Not now',
+      donateTotal: "You've saved {amt}",
+      donateText: 'If it helped, consider leaving a small share of what you saved.',
+      donateBtn: 'Donate {amt} with PayPal',
     },
     es: {
       appTitle: '¿USD o CRC?', offline: 'Sin conexión', navCalc: 'Calculadora', navHistory: 'Historial',
@@ -442,6 +506,13 @@
       errOfflineNoRate: 'Sin conexión y sin tipo de cambio guardado. Ingrese el tipo de compra de hoy.',
       errStorage: 'No se pudo guardar en el historial (almacenamiento lleno o bloqueado). El resultado se muestra igual.',
       errStorageClear: 'No se pudo borrar el historial (almacenamiento bloqueado).',
+      addLabel: '+ Etiqueta', labelPlaceholder: 'ej. Supermercado', labelInput: 'Nueva etiqueta',
+      removeLabel: 'Quitar etiqueta "{label}"',
+      errStorageLabel: 'No se pudo guardar la etiqueta (almacenamiento lleno o bloqueado).',
+      donateTitle: 'Apoye esta app', notNow: 'Ahora no',
+      donateTotal: 'Ha ahorrado {amt}',
+      donateText: 'Si le ha sido útil, considere dejar una pequeña parte de lo que ahorró.',
+      donateBtn: 'Donar {amt} con PayPal',
     },
   };
 
@@ -514,6 +585,77 @@
       Store.set(CONFIG.KEYS.history, JSON.stringify(list));
     },
     clear() { localStorage.removeItem(CONFIG.KEYS.history); },
+
+    /** Stable key for an entry (older entries may lack `id`). */
+    keyOf(entry) { return String(entry.id || entry.timestamp); },
+
+    /** Cleans a raw label: trims, collapses whitespace, caps length. */
+    normalizeLabel(raw) { return String(raw).replace(/\s+/g, ' ').trim().slice(0, 30); },
+
+    /** Applies `mutate(entry)` to the entry with this key and saves. Throws if storage fails. */
+    update(key, mutate) {
+      const list = this.load();
+      const entry = list.find(e => this.keyOf(e) === key);
+      if (!entry) return;
+      mutate(entry);
+      Store.set(CONFIG.KEYS.history, JSON.stringify(list));
+    },
+
+    /** Adds one or more comma-separated labels (case-insensitive de-dupe). */
+    addLabels(key, raw) {
+      const incoming = String(raw).split(',').map(l => this.normalizeLabel(l)).filter(Boolean);
+      if (!incoming.length) return;
+      this.update(key, (e) => {
+        const labels = Array.isArray(e.labels) ? e.labels : [];
+        for (const l of incoming) {
+          if (!labels.some(x => x.toLowerCase() === l.toLowerCase())) labels.push(l);
+        }
+        e.labels = labels;
+      });
+    },
+
+    removeLabel(key, label) {
+      this.update(key, (e) => {
+        e.labels = (Array.isArray(e.labels) ? e.labels : []).filter(l => l !== label);
+      });
+    },
+
+    /** Distinct labels across all entries, for autocomplete. */
+    allLabels() {
+      const seen = new Map();
+      for (const e of this.load()) {
+        for (const l of (Array.isArray(e.labels) ? e.labels : [])) {
+          if (!seen.has(l.toLowerCase())) seen.set(l.toLowerCase(), l);
+        }
+      }
+      return [...seen.values()].sort((a, b) => a.localeCompare(b));
+    },
+  };
+
+  /* =========================================================================
+   * DONATIONS — suggested amount = % of total savings, paid via PayPal.me
+   * ========================================================================= */
+  const Donate = {
+    enabled() { return Boolean(CONFIG.DONATE.PAYPAL_ME); },
+    totalSavings() {
+      const sum = HistoryStore.load().reduce((s, e) => s + (Number(e.savingsUSD) > 0 ? Number(e.savingsUSD) : 0), 0);
+      return Calculator.round2(sum);
+    },
+    /** % of savings, never below the minimum. */
+    amountFor(total, pct) { return Math.max(Calculator.round2(total * pct / 100), CONFIG.DONATE.MIN_USD); },
+    /** paypal.me supports a prefilled amount: /name/3.82USD */
+    url(amount) {
+      return `https://paypal.me/${encodeURIComponent(CONFIG.DONATE.PAYPAL_ME)}/${amount.toFixed(2)}USD`;
+    },
+    snoozed() {
+      const until = Number(Store.get(CONFIG.KEYS.donateSnooze));
+      return isFinite(until) && until > Date.now();
+    },
+    snooze() {
+      const until = Date.now() + CONFIG.DONATE.SNOOZE_DAYS * 86400000;
+      try { Store.set(CONFIG.KEYS.donateSnooze, String(until)); } catch { /* non-critical */ }
+    },
+    shouldShow(total) { return this.enabled() && !this.snoozed() && total >= CONFIG.DONATE.SHOW_AFTER_USD; },
   };
 
   /* =========================================================================
@@ -657,7 +799,9 @@
     savings: $('savings'), merchantRate: $('merchant-rate'), yourRate: $('your-rate'),
     viewCalc: $('view-calculator'), viewHistory: $('view-history'),
     historyList: $('history-list'), historyEmpty: $('history-empty'), historyMsg: $('history-msg'),
-    clearBtn: $('clear-btn'),
+    clearBtn: $('clear-btn'), labelSuggestions: $('label-suggestions'),
+    donateCard: $('donate-card'), donateTotal: $('donate-total'), donatePcts: $('donate-pcts'),
+    donateLink: $('donate-link'), donateDismiss: $('donate-dismiss'),
   };
 
   const state = {
@@ -666,6 +810,7 @@
     rateMsgKey: null,  // current rate message (re-rendered on language change)
     lastResult: null,  // last computed entry (re-rendered on language change)
     loading: false,
+    donatePct: CONFIG.DONATE.DEFAULT_PERCENT,
   };
 
   const UI = {
@@ -772,9 +917,88 @@
         );
         const rec = mk('h-rec', e.recommended);
         if (e.savingsUSD > 0) rec.append(mk('', I18n.t('saves', { amt: Fmt.usd(e.savingsUSD) }), 'small'));
-        li.append(rec);
+        li.append(rec, this.labelsRow(e, mk));
         el.historyList.append(li);
       }
+      el.labelSuggestions.replaceChildren(...HistoryStore.allLabels().map(l => new Option(l)));
+      this.renderDonate();
+    },
+
+    /** Support card: total savings, % options and a prefilled PayPal.me link. */
+    renderDonate() {
+      const total = Donate.totalSavings();
+      const show = Donate.shouldShow(total);
+      el.donateCard.classList.toggle('hidden', !show);
+      if (!show) return;
+      el.donateTotal.textContent = I18n.t('donateTotal', { amt: Fmt.usd(total) });
+      el.donatePcts.replaceChildren(...CONFIG.DONATE.PERCENTS.map(pct => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.dataset.pct = pct;
+        b.setAttribute('aria-pressed', String(pct === state.donatePct));
+        const small = document.createElement('small');
+        small.className = 'num';
+        small.textContent = Fmt.usd(Donate.amountFor(total, pct));
+        b.append(`${pct}%`, small);
+        return b;
+      }));
+      const amount = Donate.amountFor(total, state.donatePct);
+      el.donateLink.href = Donate.url(amount);
+      el.donateLink.textContent = I18n.t('donateBtn', { amt: Fmt.usd(amount) });
+    },
+
+    /** Chips for an entry's labels plus the "+ Label" button. */
+    labelsRow(e, mk) {
+      const row = document.createElement('div');
+      row.className = 'h-labels';
+      row.dataset.key = HistoryStore.keyOf(e);
+      for (const label of (Array.isArray(e.labels) ? e.labels : [])) {
+        const chip = mk('h-label', label, 'span');
+        const x = mk('h-label-x', '×', 'button');
+        x.type = 'button';
+        x.dataset.action = 'remove-label';
+        x.dataset.label = label;
+        x.setAttribute('aria-label', I18n.t('removeLabel', { label }));
+        chip.append(x);
+        row.append(chip);
+      }
+      const add = mk('h-label-add', I18n.t('addLabel'), 'button');
+      add.type = 'button';
+      add.dataset.action = 'add-label';
+      row.append(add);
+      return row;
+    },
+
+    /** Swaps the "+ Label" button for an inline input; Enter saves, Esc cancels. */
+    openLabelInput(addBtn) {
+      const key = addBtn.closest('.h-labels').dataset.key;
+      const form = document.createElement('form');
+      form.className = 'h-label-form';
+      const input = document.createElement('input');
+      input.className = 'h-label-input';
+      input.type = 'text';
+      input.maxLength = 90;
+      input.enterKeyHint = 'done';
+      input.setAttribute('list', 'label-suggestions');
+      input.setAttribute('aria-label', I18n.t('labelInput'));
+      input.placeholder = I18n.t('labelPlaceholder');
+      form.append(input);
+      addBtn.replaceWith(form);
+      input.focus();
+
+      let done = false;
+      const finish = (save) => {
+        if (done) return;
+        done = true;
+        if (save && input.value.trim()) {
+          try { HistoryStore.addLabels(key, input.value); this.hideMsg(el.historyMsg); }
+          catch { this.showMsg(el.historyMsg, I18n.t('errStorageLabel')); }
+        }
+        this.renderHistory();
+      };
+      form.addEventListener('submit', (ev) => { ev.preventDefault(); finish(true); });
+      input.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') finish(false); });
+      input.addEventListener('blur', () => finish(true));
     },
 
     showView(view) {
@@ -870,6 +1094,19 @@
     UI.renderHistory();
   }
 
+  /** Delegated clicks on history cards: add / remove labels. */
+  function handleHistoryClick(event) {
+    const btn = event.target.closest('button[data-action]');
+    if (!btn) return;
+    if (btn.dataset.action === 'add-label') return UI.openLabelInput(btn);
+    if (btn.dataset.action === 'remove-label') {
+      const key = btn.closest('.h-labels').dataset.key;
+      try { HistoryStore.removeLabel(key, btn.dataset.label); UI.hideMsg(el.historyMsg); }
+      catch { UI.showMsg(el.historyMsg, I18n.t('errStorageLabel')); }
+      UI.renderHistory();
+    }
+  }
+
   function setLanguage(lang) {
     I18n.lang = lang;
     try { Store.set(CONFIG.KEYS.lang, lang); } catch { /* non-critical */ }
@@ -904,6 +1141,12 @@
     el.form.addEventListener('submit', handleCalculate);
     el.refreshBtn.addEventListener('click', refreshRate);
     el.clearBtn.addEventListener('click', handleClearHistory);
+    el.historyList.addEventListener('click', handleHistoryClick);
+    el.donatePcts.addEventListener('click', (ev) => {
+      const b = ev.target.closest('button[data-pct]');
+      if (b) { state.donatePct = Number(b.dataset.pct); UI.renderDonate(); }
+    });
+    el.donateDismiss.addEventListener('click', () => { Donate.snooze(); UI.renderDonate(); });
     el.manualInput.addEventListener('input', () => UI.renderRate());
     document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => UI.showView(b.dataset.view)));
     document.querySelectorAll('[data-lang]').forEach(b => b.addEventListener('click', () => setLanguage(b.dataset.lang)));

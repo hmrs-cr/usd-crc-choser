@@ -3,7 +3,7 @@
  * Exchange-rate APIs (cross-origin) are never cached here — the page keeps
  * the last rate in localStorage (fx_last_rate) so it knows the rate's age.
  * To ship an update, bump CACHE_VERSION. */
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v6';
 const CACHE = `fx-optimizer-${CACHE_VERSION}`;
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 
