@@ -253,6 +253,61 @@
     }
     .site-footer a { color: var(--muted); font-weight: 600; text-underline-offset: 2px; }
     .site-footer a:hover, .site-footer a:focus-visible { color: var(--primary); }
+    .site-footer .btn-link { font-size: inherit; padding: 0; }
+    .site-footer .sep { margin: 0 6px; }
+
+    /* ===================== Onboarding (one-time welcome) ===================== */
+    .ob {
+      width: calc(100% - 32px); max-width: 440px; max-height: calc(100dvh - 32px); overflow: auto;
+      border: 0; border-radius: 18px; padding: 20px; background: var(--surface); color: var(--text);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, .3);
+    }
+    .ob::backdrop { background: rgba(4, 16, 15, .55); backdrop-filter: blur(2px); }
+    .ob[open] { animation: ob-pop .35s ease-out; }
+    @keyframes ob-pop { from { opacity: 0; transform: translateY(12px) scale(.98); } }
+    .ob-top { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+    .ob h2 { font-size: 1.35rem; margin: 14px 0 6px; }
+    .ob-intro { margin: 0 0 14px; color: var(--muted); font-size: .92rem; }
+    .ob-steps { list-style: none; margin: 0 0 18px; padding: 0; display: grid; gap: 10px; counter-reset: ob; }
+    .ob-steps li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; font-size: .92rem; }
+    .ob-steps li::before {
+      counter-increment: ob; content: counter(ob);
+      width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+      background: var(--accent-soft); color: var(--primary); font-weight: 800; font-size: .85rem;
+    }
+
+    /* Demo: a sample comparison that plays on an 8 s loop */
+    .ob-demo {
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px;
+      padding: 14px; display: grid; gap: 10px;
+    }
+    .ob-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .ob-tile {
+      background: var(--surface); border: 2px solid var(--border); border-radius: 12px;
+      padding: 10px; text-align: center; animation: ob-a 8s infinite both;
+    }
+    .ob-tile.crc { animation: ob-a 8s infinite both, ob-win 8s infinite both; }
+    .ob-cap { font-size: .7rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    .ob-amt { font-size: 1.1rem; font-weight: 800; }
+    .ob-approx { font-size: .78rem; color: var(--muted); animation: ob-c 8s infinite both; }
+    .ob-rate {
+      justify-self: center; font-size: .8rem; font-weight: 600; padding: 4px 12px; border-radius: 999px;
+      background: var(--surface); border: 1px dashed var(--border); animation: ob-b 8s infinite both;
+    }
+    .ob-verdict {
+      justify-self: center; font-weight: 800; font-size: .95rem; padding: 6px 14px; border-radius: 999px;
+      background: var(--win-soft); color: var(--win); animation: ob-d 8s infinite both;
+    }
+    @keyframes ob-a { 0% { opacity: 0; transform: translateY(8px); } 6%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+    @keyframes ob-b { 0%, 18% { opacity: 0; transform: scale(.9); } 26%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+    @keyframes ob-c { 0%, 38% { opacity: 0; } 46%, 92% { opacity: 1; } 100% { opacity: 0; } }
+    @keyframes ob-win {
+      0%, 55% { border-color: var(--border); background: var(--surface); transform: none; }
+      60% { border-color: var(--win); background: var(--win-soft); transform: scale(1.05); }
+      65%, 92% { border-color: var(--win); background: var(--win-soft); transform: none; }
+      100% { border-color: var(--border); background: var(--surface); }
+    }
+    @keyframes ob-d { 0%, 60% { opacity: 0; transform: scale(.8); } 66% { opacity: 1; transform: scale(1.06); } 70%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
 
     @media (min-width: 768px) {
       main, .header-inner, .nav-row { max-width: 720px; }
@@ -260,7 +315,12 @@
       #view-calculator > .span-2 { grid-column: 1 / -1; }
       .history-list { grid-template-columns: 1fr 1fr; }
     }
-    @media (prefers-reduced-motion: reduce) { .spin svg { animation: none; } }
+    @media (prefers-reduced-motion: reduce) {
+      .spin svg { animation: none; }
+      /* Show the demo's final state, no motion */
+      .ob[open], .ob-tile, .ob-approx, .ob-rate, .ob-verdict { animation: none !important; }
+      .ob-tile.crc { border-color: var(--win); background: var(--win-soft); }
+    }
   </style>
 </head>
 <body>
@@ -391,10 +451,48 @@
     </section>
   </main>
 
-  <footer class="site-footer hidden" id="site-footer">
-    <span data-i18n="footerText">Find this useful?</span>
-    <a id="footer-donate" target="_blank" rel="noopener noreferrer"></a>
+  <footer class="site-footer">
+    <button type="button" class="btn-link" id="footer-howto" data-i18n="howItWorks">How it works</button>
+    <span id="footer-donate-wrap" class="hidden">
+      <span class="sep" aria-hidden="true">·</span>
+      <span data-i18n="footerText">Find this useful?</span>
+      <a id="footer-donate" target="_blank" rel="noopener noreferrer"></a>
+    </span>
   </footer>
+
+  <!-- ===================== One-time welcome screen ===================== -->
+  <dialog class="ob" id="onboarding" aria-labelledby="ob-title">
+    <div class="ob-top">
+      <div class="segmented" role="group" aria-label="Language">
+        <button type="button" data-lang="en" aria-pressed="true">EN</button>
+        <button type="button" data-lang="es" aria-pressed="false">ES</button>
+      </div>
+    </div>
+    <div class="ob-demo" aria-hidden="true">
+      <div class="ob-tiles">
+        <div class="ob-tile">
+          <div class="ob-cap">USD</div>
+          <div class="ob-amt num" id="ob-usd"></div>
+          <div class="ob-approx">&nbsp;</div>
+        </div>
+        <div class="ob-tile crc">
+          <div class="ob-cap">CRC</div>
+          <div class="ob-amt num" id="ob-crc"></div>
+          <div class="ob-approx num" id="ob-approx"></div>
+        </div>
+      </div>
+      <div class="ob-rate num" id="ob-rate"></div>
+      <div class="ob-verdict num" id="ob-verdict"></div>
+    </div>
+    <h2 id="ob-title" data-i18n="obTitle">Dollars or colones?</h2>
+    <p class="ob-intro" data-i18n="obIntro"></p>
+    <ol class="ob-steps">
+      <li><span data-i18n="obStep1"></span></li>
+      <li><span data-i18n="obStep2"></span></li>
+      <li><span data-i18n="obStep3"></span></li>
+    </ol>
+    <button type="button" class="btn-primary" id="ob-start" data-i18n="obStart">Get started</button>
+  </dialog>
 
   <script>
   'use strict';
@@ -407,7 +505,7 @@
     FALLBACK_PROVIDER: 'hacienda', // tried when the selected bank fails
     TIMEOUT_MS: 6000,
     RATE_TTL_MS: 7 * 60 * 1000,    // reuse a fetched rate for 7 minutes before calling the APIs again
-    KEYS: { history: 'fx_calculator_history', lastRate: 'fx_last_rate', lang: 'fx_lang', bank: 'fx_bank', donateSnooze: 'fx_donate_snooze' },
+    KEYS: { history: 'fx_calculator_history', lastRate: 'fx_last_rate', lang: 'fx_lang', bank: 'fx_bank', donateSnooze: 'fx_donate_snooze', onboarded: 'fx_onboarded' },
     DONATE: {
       PAYPAL_ME: 'hmrscr',   // your paypal.me username; '' hides the donate card
       PERCENTS: [5, 10, 15],   // share-of-savings options
@@ -499,6 +597,12 @@
       donateText: 'If it helped, consider leaving a small share of what you saved.',
       donateBtn: 'Donate {amt} with PayPal',
       footerText: 'Find this useful?', footerLink: 'Buy me a coffee ({amt})',
+      howItWorks: 'How it works', obTitle: 'Dollars or colones?', obStart: 'Get started',
+      obIntro: "Many stores in Costa Rica show prices in both USD and CRC, but their exchange rate is usually different from your bank's. If you're paid in dollars, this app tells you which one really costs you less.",
+      obStep1: "We get your bank's USD buy rate: what you actually get when you change dollars.",
+      obStep2: 'Type the price in dollars and the price in colones.',
+      obStep3: "See which currency is cheaper and how much you save. Your history stays on this device only.",
+      obRate: 'Bank rate {amt} per $1', obVerdict: '✓ Pay in CRC · save {amt}',
     },
     es: {
       appTitle: '¿USD o CRC?', offline: 'Sin conexión', navCalc: 'Calculadora', navHistory: 'Historial',
@@ -529,6 +633,12 @@
       donateText: 'Si le ha sido útil, considere dejar una pequeña parte de lo que ahorró.',
       donateBtn: 'Donar {amt} con PayPal',
       footerText: '¿Le resulta útil?', footerLink: 'Invíteme un café ({amt})',
+      howItWorks: 'Cómo funciona', obTitle: '¿Dólares o colones?', obStart: 'Empezar',
+      obIntro: 'Muchos comercios en Costa Rica muestran precios en USD y en CRC, pero su tipo de cambio suele ser distinto al de su banco. Si le pagan en dólares, esta app le dice cuál le sale realmente más barato.',
+      obStep1: 'Obtenemos el tipo de cambio de compra de su banco: lo que realmente recibe al cambiar dólares.',
+      obStep2: 'Escriba el precio en dólares y el precio en colones.',
+      obStep3: 'Vea qué moneda es más barata y cuánto ahorra. Su historial queda solo en este dispositivo.',
+      obRate: 'TC del banco {amt} por $1', obVerdict: '✓ Pague en CRC · ahorra {amt}',
     },
   };
 
@@ -818,7 +928,9 @@
     clearBtn: $('clear-btn'), labelSuggestions: $('label-suggestions'),
     donateCard: $('donate-card'), donateTotal: $('donate-total'), donatePcts: $('donate-pcts'),
     donateLink: $('donate-link'), donateDismiss: $('donate-dismiss'),
-    footer: $('site-footer'), footerDonate: $('footer-donate'),
+    footerDonateWrap: $('footer-donate-wrap'), footerDonate: $('footer-donate'), footerHowto: $('footer-howto'),
+    onboarding: $('onboarding'), obStart: $('ob-start'),
+    obUsd: $('ob-usd'), obCrc: $('ob-crc'), obApprox: $('ob-approx'), obRate: $('ob-rate'), obVerdict: $('ob-verdict'),
   };
 
   const state = {
@@ -841,11 +953,30 @@
       if (state.lastResult) this.renderResult(state.lastResult);
       this.renderHistory();
       this.renderFooter();
+      this.renderOnboardingDemo();
+    },
+
+    /** Sample numbers for the welcome animation, formatted for the current language. */
+    renderOnboardingDemo() {
+      const usd = 50, crc = 24000, rate = 505;
+      const { costCrcInUsd, savingsUSD } = Calculator.compute(usd, crc, rate);
+      el.obUsd.textContent = Fmt.usd(usd);
+      el.obCrc.textContent = Fmt.crc(crc).replace(/[.,]00$/, '');
+      el.obApprox.textContent = I18n.t('approx', { amt: Fmt.usd(costCrcInUsd) });
+      el.obRate.textContent = I18n.t('obRate', { amt: Fmt.crc(rate).replace(/[.,]00$/, '') });
+      el.obVerdict.textContent = I18n.t('obVerdict', { amt: Fmt.usd(savingsUSD) });
+    },
+
+    /** Opens the welcome screen (no-op where <dialog> isn't supported). */
+    openOnboarding() {
+      if (typeof el.onboarding.showModal !== 'function' || el.onboarding.open) return;
+      el.onboarding.showModal();
+      el.obStart.focus();
     },
 
     /** Small permanent footer link with a fixed PayPal amount. */
     renderFooter() {
-      el.footer.classList.toggle('hidden', !Donate.enabled());
+      el.footerDonateWrap.classList.toggle('hidden', !Donate.enabled());
       if (!Donate.enabled()) return;
       const amt = CONFIG.DONATE.FOOTER_USD;
       el.footerDonate.href = Donate.url(amt);
@@ -1175,6 +1306,13 @@
     });
     el.donateDismiss.addEventListener('click', () => { Donate.snooze(); UI.renderDonate(); });
     el.manualInput.addEventListener('input', () => UI.renderRate());
+    // Welcome screen: shown once; closing it (button or Esc) marks it as seen.
+    el.footerHowto.addEventListener('click', () => UI.openOnboarding());
+    el.obStart.addEventListener('click', () => el.onboarding.close());
+    el.onboarding.addEventListener('close', () => {
+      try { Store.set(CONFIG.KEYS.onboarded, '1'); } catch { /* non-critical */ }
+    });
+    if (!Store.get(CONFIG.KEYS.onboarded)) UI.openOnboarding();
     document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => UI.showView(b.dataset.view)));
     document.querySelectorAll('[data-lang]').forEach(b => b.addEventListener('click', () => setLanguage(b.dataset.lang)));
 
